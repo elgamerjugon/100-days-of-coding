@@ -268,38 +268,36 @@ from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
+# Transformers
+# El problema que tenía era la distribución de los paréntesis en los Pipelines, los steps no los estaba jerarquizando bien
+numerical_transformer = Pipeline(steps = [("imputer", SimpleImputer(strategy = "mean")),
+                                          ("scaler", StandardScaler())
+                                          ])
 
-# Define transformers for numerical and categorical columns
-numerical_transformer = Pipeline(steps=[
-    ('imputer', SimpleImputer(strategy='mean')),
-    ('scaler', StandardScaler())
-])
+categorical_transformer = Pipeline(steps = [("imputer", SimpleImputer(strategy = "constant", fill_value = "missing")),
+                                            ("onehot", OneHotEncoder(handle_unknown = "ignore", sparse = False))
+                                            ])
 
-categorical_transformer = Pipeline(steps=[
-    ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-    ('onehot', OneHotEncoder(handle_unknown='ignore', sparse = False))
-])
-# Update categorical and numerical columns
-categorical_columns = df.select_dtypes(include=['object', 'category']).columns
-numerical_columns = df.select_dtypes(include=['int64', 'float64']).columns
+# Update categorical and numerical values
+categorical_columns = df.select_dtypes(include = ["object", "category"]).columns
+numerical_columns = df.select_dtypes(include = ["int64", "float64"]).columns
 
-# Remove target variable from numerical columns
-# As we are starting with the model itself, let's drop
-# the dependant variable
-numerical_columns = numerical_columns.drop('SalePrice')
 
-# Combine transformers using ColumnTransformer
+numerical_columns = numerical_columns.drop("SalePrice")
+
+# Combine transformers and start preprocessing
 preprocessor = ColumnTransformer(
-    transformers=[
-        ('num', numerical_transformer, numerical_columns),
-        ('cat', categorical_transformer, categorical_columns)
-    ],remainder = 'passthrough') # this value is used to specify what will happen to remaining columns not specified on transformer, you can drop them or pass them through
+    transformers = [
+        ("num", numerical_transformer, numerical_columns),
+        ("cat", categorical_transformer, categorical_columns)],
+        remainder = "passthrough" 
+    )
 
-# Create a pipeline with the preprocessor
-pipeline = Pipeline(steps=[
-    ('preprocessor', preprocessor)])
+pipeline = Pipeline(steps = [
+    ("preprocessor", preprocessor)])
 
-# Apply the pipeline to your dataset
-X = df.drop('SalePrice', axis=1)
-y = np.log(df['SalePrice']) # Apply a normalization, remember to denormalize when predicting values
+# Apply the pipeline to dataset
+
+X = df.drop("SalePrice", axis = 1)
+y = np.log(df["SalePrice"]) 
 X_preprocessed = pipeline.fit_transform(X)
