@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 nbformat = "*"
+scikit-learn = "*"
 
 [dev-packages]
 
