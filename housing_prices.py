@@ -315,6 +315,7 @@ X_preprocessed = pipeline.fit_transform(X)
 # display(HTML(create_scrollable_table(pd.DataFrame(X_preprocessed), "preprocessed", "X")))
 # np.where(np.isnan(X_preprocessed))
 # Start impleenting regressors
+
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
@@ -365,3 +366,56 @@ for model_name, model in models.items():
     print(f"Best RMSE for {model_name}: {best_score}\n")
 
 # np.where(np.isnan(y))
+    
+# Train nerual network
+
+X_train_scaled = X_train.copy()
+X_test_scaled = X_test.copy()
+
+# Create MLP Regressor Instance
+from sklearn.neural_network import MLPRegressor
+
+mlp = MLPRegressor(random_state = 42, max_iter = 10000, n_iter_no_change = 3, learning_rate_init = 0.001)
+
+# Parameter grid for tuning
+param_grid = {
+    "hidden_layer_sizes": [(10,), (10, 10), (10, 10, 10), (25)],
+    "activation": ["relu", "tanh"],
+    "solver": ["adam"],
+    "alpha": [0.0001, 0.001, 0.01],
+    "learning_rate": ["constant", "invscaling", "adaptive"]
+
+}
+
+# CReate GridSearchCV object
+grid_search_mlp = GridSearchCV(mlp, param_grid, scoring = "neg_mean_squared_error", cv = 3, n_jobs = -1, verbose = 1)
+
+# Fit the model on the training data
+grid_search_mlp.fit(X_train_scaled, y_train)
+
+# Print best parameters found during search
+print("Best parameters found:", grid_search_mlp.best_params_ )
+
+# Evaluate the model on the test data
+best=score = np.sqrt(-1 * grid_search_mlp.best_score_)
+print("Test score:", best_score)
+
+# Principal component analysis
+from sklearn.decomposition import PCA
+
+pca = PCA()
+x_pca_pre = pca.fit_transform(X_preprocessed)
+
+# Calculate cumulative explained variance
+cumulative_explained_variance = np.cumsum(pca.explained_variance_ratio_)
+
+# Choose the number of components based on the explained variance
+n_components = np.argmax(cumulative_explained_variance >= 0.95) + 1
+
+pca = PCA(n_components = n_components)
+pipeline_pca = Pipeline(steps = [
+    ("preprocessor", preprocessor),
+    ("pca", pca)
+])
+
+X_pca = pipeline_pca.fit_transform(X)
