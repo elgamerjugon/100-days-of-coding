@@ -8,6 +8,7 @@ from IPython.display import display, HTML
 df = pd.read_csv("./train.csv")
 df.info()
 df.shape
+df = df.reset_index()
 
 def create_scrollable_table(df, table_id, title):
     html = f'<h3>{title}</h3>'
@@ -261,6 +262,9 @@ fig13.update_layout(
     xaxis_title = "Year Sold",
     yaxis_title = "Sale Price"
 )
+# df.info()
+# df[df.select_dtypes(np.float64).columns] = df.select_dtypes(np.float64).astype(np.float32)
+# df[df.select_dtypes(np.int64).columns] = df.select_dtypes(np.int64).astype(np.int32)
 
 # Creating pipelines with sklearn
 from sklearn.compose import ColumnTransformer
@@ -280,6 +284,7 @@ categorical_transformer = Pipeline(steps = [("imputer", SimpleImputer(strategy =
 
 # Update categorical and numerical values
 categorical_columns = df.select_dtypes(include = ["object", "category"]).columns
+# numerical_columns = df.select_dtypes(include = ["int32", "float32"]).columns
 numerical_columns = df.select_dtypes(include = ["int64", "float64"]).columns
 
 
@@ -301,3 +306,62 @@ pipeline = Pipeline(steps = [
 X = df.drop("SalePrice", axis = 1)
 y = np.log(df["SalePrice"]) 
 X_preprocessed = pipeline.fit_transform(X)
+# X_preprocessed = np.float32(X_preprocessed)
+
+
+# np.any(np.isnan(X_preprocessed))
+# np.all(np.isfinite(X_preprocessed))
+# np.isinf(X_preprocessed) == True
+# display(HTML(create_scrollable_table(pd.DataFrame(X_preprocessed), "preprocessed", "X")))
+# np.where(np.isnan(X_preprocessed))
+# Start impleenting regressors
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
+from sklearn.model_selection import GridSearchCV, KFold, cross_val_score, train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(X_preprocessed, y, test_size = 0.2, random_state = 42)
+
+models = {
+    "LinearRegression": LinearRegression(),
+    "RandomForest": RandomForestRegressor(random_state = 42),
+    "XGBoost": XGBRegressor(random_state = 42)
+}
+
+# Hyperparameters
+param_grids = {
+    "LinearRegression": {},
+    "RandomForest": {
+        "n_estimators": [100, 200, 500],
+        "max_depth": [None, 10, 30],
+        "min_samples_split": [3, 6, 10]
+    },
+    "XGBoost": {
+        "n_estimators": [100, 200, 500],
+        "learning_rate": [None, 10, 30],
+        "max_depth": [3, 6, 10]
+    }
+}
+
+# Cross validation
+cv = KFold(n_splits = 3, shuffle = True, random_state = 42)
+
+# Training and tuning
+
+grids = {}
+for model_name, model in models.items():
+    print(f"El modelo es: {model_name}")
+    grids[model_name] = GridSearchCV(estimator = model, 
+                                     param_grid = param_grids[model_name],
+                                     cv = cv,
+                                     scoring = "neg_mean_squared_error",
+                                     n_jobs = -1,
+                                     verbose = 2)
+    grids[model_name].fit(X_train, y_train)
+    best_params = grids[model_name].best_params_
+    best_score = np.sqrt(-1 * grids[model_name].best_score_)
+
+    print(f"Best parameters for {model_name}: {best_params}")
+    print(f"Best RMSE for {model_name}: {best_score}\n")
+
+# np.where(np.isnan(y))

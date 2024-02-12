@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 nbformat = "*"
 scikit-learn = "*"
+xgboost = "*"
 
 [dev-packages]
 
