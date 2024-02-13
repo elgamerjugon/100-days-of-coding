@@ -54,6 +54,18 @@ display(HTML(html_rows_missing_values))
 # The dependant variable is the one that we are trying to predict
 # IV exploration
 
+# test = go.Histogram(x = df.SalePrice, nbinsx = 50, name = "Histogram", opacity = 0.75, histnorm = "probability density", marker = dict(color = "purple"))
+# test_fig = go.Figure(data = test)
+# test_fig.update_layout(
+#     title="SalePrice Distribution",
+#     xaxis_title="SalePrice",
+#     yaxis_title="Density",
+#     legend_title_text="Fitted Normal Distribution",
+#     plot_bgcolor='rgba(32, 32, 32, 1)',
+#     paper_bgcolor='rgba(32, 32, 32, 1)',
+#     font=dict(color='white')
+# )
+
 mu, sigma = stats.norm.fit(df.SalePrice)
 
 hist_data = go.Histogram(x = df.SalePrice, nbinsx = 50, name = "Histogram", opacity = 0.75, histnorm = "probability density", marker = dict(color = "purple"))
@@ -419,3 +431,192 @@ pipeline_pca = Pipeline(steps = [
 ])
 
 X_pca = pipeline_pca.fit_transform(X)
+
+# Running same models after applying PCA
+# Splitting data
+
+X_train_pca, X_test_pca, y_train_pca, y_test_pca = train_test_split(X_pca, y, test_size = 0.2, random_state = 42)
+
+# Define the models to work with
+models = {
+    "LinearRegression": LinearRegression(),
+    "RandomForest": RandomForestRegressor(random_state = 42),
+    "XGBoost": XGBRegressor(random_State = 42)
+}
+
+# Define hyperatameters
+param_grids = {
+    "LinearRegression": {},
+    "RandomForest":{
+        "n_estimators": [100, 200, 500],
+        "max_depth": [None, 10, 30],
+        "min_samples_split": [2, 5, 10]
+    },
+    "XGBoost": {
+        "n_estimators": [100, 200, 500],
+        "learning_rate": [0.01, 0.1, 0.3],
+        "max_depth": [3, 6, 10]
+    }
+}
+
+# 3 fold cross validation
+cv = KFold(n_splits = 3, shuffle = True, random_state = 42)
+
+# Train and tune the models
+grids_pca = {}
+for model_name, model in models.items():
+    grids_pca[model_name] = GridSearchCV(
+        estimator = model, 
+        param_grid = param_grids[model_name], 
+        cv = cv,
+        scoring = "neg_mean_squared_error",
+        n_jobs = -1, 
+        verbose = 2
+        ) 
+    grids_pca[model_name] .fit(X_train_pca, y_train_pca)
+    best_params = grids_pca[model_name].best_params_
+    best_score = np.sqrt(-1 * grids_pca[model_name].best_score_)
+    print(f"Best parameters for {model_name}: {best_params}")
+    print(f"Best RMSE for {model_name}: {best_score}\n")
+
+
+# Neural Network
+X_train_scaled_pca = X_train_pca.copy()
+X_test_scaled_pca = X_test_pca.copy()
+
+# MLP Regressor instance
+mlp = MLPRegressor(
+    random_state = 42, 
+    max_iter = 10000, 
+    n_iter_no_change = 3,
+    learning_rate_init = 0.001)
+
+# Define the parameter grid for tuning
+param_grid = {
+    "hidden_layer_sizes": [(10, ), (10, 10), (10, 10, 10), (25)],
+    "activation": ["relu", "tanh"],
+    "solver": ["adam"],
+    "alpha": [0.0001, 0.001, 0.01, .1, 1],
+    "learning_rate": ["constant", "invscaling", "adaptive"]
+}
+
+# Create Gridsearch object
+grid_search_mlp_pca = GridSearchCV(
+    mlp, 
+    param_grid, 
+    scoring = "neg_mean_squared_error",
+    cv = 3, 
+    n_jobs = -1,
+    verbose = 1)
+
+grid_search_mlp_pca.fit(X_train_scaled_pca, y_train)
+
+print(f"Best parameters found: {grid_search_mlp_pca.best_params_}")
+
+best_score = np.sqrt(-1 * grid_search_mlp_pca.best_score_)
+print(f"Best score: {best_score}")
+
+from sklearn.metrics import mean_squared_error
+for i in grids.keys():
+    print(i + ":", str(np.sqrt(mean_squared_error(grids[i].predict(X_test), y_test))))
+
+for i in grids.keys():
+    print(i + ":", str(np.sqrt(mean_squared_error(grids_pca[i].predict(X_test_pca), y_test_pca))))
+
+print(str(np.sqrt(mean_squared_error(grid_search_mlp.predict(X_test_scaled), y_test))))
+print(str(np.sqrt(mean_squared_error(grid_search_mlp_pca.predict(X_test_scaled_pca), y_test))))
+
+# Variables exploration for feature engineering
+var_explore = df[['Fence','Alley','MiscFeature','PoolQC','FireplaceQu','GarageCond','GarageQual','GarageFinish','GarageType','BsmtExposure','BsmtFinType2','BsmtFinType1','BsmtCond','BsmtQual','MasVnrType','Electrical','MSZoning','Utilities','Exterior1st','Exterior2nd','KitchenQual','Functional','SaleType','LotFrontage','GarageYrBlt','MasVnrArea','BsmtFullBath','BsmtHalfBath','GarageCars','GarageArea','TotalBsmtSF']]
+
+display(HTML(create_scrollable_table(var_explore, 'var_explore', 'List of Variables to Explore for Feature Engineering')))
+
+from sklearn.preprocessing import FunctionTransformer
+
+# feature engineering functions 
+def custom_features(df):
+    df_out = df.copy()
+    df_out['PropertyAge'] = df_out['YrSold'] - df_out['YearBuilt']
+    df_out['TotalSF'] = df_out['TotalBsmtSF'] + df_out['1stFlrSF'] + df_out['2ndFlrSF']
+    df_out['TotalBath'] = df_out['FullBath'] + 0.5 * df_out['HalfBath'] + df_out['BsmtFullBath'] + 0.5 * df['BsmtHalfBath']
+    df_out['HasRemodeled'] = (df_out['YearRemodAdd'] != df_out['YearBuilt']).astype(object)
+    df_out['Has2ndFloor'] = (df_out['2ndFlrSF'] > 0).astype(object)
+    df_out['HasGarage'] = (df_out['GarageArea'] > 0).astype(object)
+    df_out['YrSold_cat'] = df_out['YrSold'].astype(object)
+    df_out['MoSold_cat'] = df_out['MoSold'].astype(object)
+    df_out['YearBuilt_cat'] = df_out['YearBuilt'].astype(object)
+    df_out['MSSubClass_cat'] = df_out['MSSubClass'].astype(object)
+    
+    return df_out
+
+feature_engineering_transformer = FunctionTransformer(custom_features)
+# Update categorical and numerical variables from the new ones 
+new_cols_categorical = pd.Index(['HasRemodeled', 'Has2ndFloor', 'HasGarage'])
+new_cols_numeric = pd.Index(['PropertyAge', 'TotalSF', 'TotalBath', 'YrSold_cat', 'MoSold_cat', 'YearBuilt_cat', 'MSSubClass_cat'])
+
+# Update categorical and numerical columns
+categorical_columns = df.select_dtypes(include=['object', 'category']).columns.append(new_cols_categorical)
+numerical_columns = df.select_dtypes(include=['int64', 'float64']).columns.append(new_cols_numeric)
+
+# Remove target variable from numerical columns
+numerical_columns = numerical_columns.drop('SalePrice')
+
+# Combine transformers using ColumnTransformer
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numerical_transformer, numerical_columns),
+        ('cat', categorical_transformer, categorical_columns)
+    ],remainder = 'passthrough')
+
+# Create a pipeline with the preprocessor
+pipeline_fe = Pipeline(steps=[
+    ('fe', feature_engineering_transformer),
+    ('preprocessor', preprocessor),
+    ('pca', pca)])
+
+# Apply the pipeline to your dataset
+X = df.drop('SalePrice', axis=1)
+y = np.log(df['SalePrice'])
+X_preprocessed_fe = pipeline_fe.fit_transform(X)
+
+# Train and test our models
+# Split the data into training and testing sets
+from sklearn.model_selection import train_test_split
+X_train_fe, X_test_fe, y_train_fe, y_test_fe = train_test_split(X_preprocessed_fe, y, test_size=0.2, random_state=42)
+
+# Define the models
+models = {
+    'LinearRegression': LinearRegression(),
+    'RandomForest': RandomForestRegressor(random_state=42),
+    'XGBoost': XGBRegressor(random_state=42)
+}
+
+# Define the hyperparameter grids for each model
+param_grids = {
+    'LinearRegression': {},
+    'RandomForest': {
+        'n_estimators': [100, 200, 500],
+        'max_depth': [None, 10, 30],
+        'min_samples_split': [2, 5, 10],
+    },
+    'XGBoost': {
+        'n_estimators': [100, 200, 500],
+        'learning_rate': [0.01, 0.1, 0.3],
+        'max_depth': [3, 6, 10],
+    }
+}
+
+# 3-fold cross-validation
+cv = KFold(n_splits=3, shuffle=True, random_state=42)
+
+# Train and tune the models
+grids_fe = {}
+for model_name, model in models.items():
+    #print(f'Training and tuning {model_name}...')
+    grids_fe[model_name] = GridSearchCV(estimator=model, param_grid=param_grids[model_name], cv=cv, scoring='neg_mean_squared_error', n_jobs=-1, verbose=2)
+    grids_fe[model_name].fit(X_train_fe, y_train_fe)
+    best_params = grids_fe[model_name].best_params_
+    best_score = np.sqrt(-1 * grids_fe[model_name].best_score_)
+    
+    print(f'Best parameters for {model_name}: {best_params}')
+    print(f'Best RMSE for {model_name}: {best_score}\n')
