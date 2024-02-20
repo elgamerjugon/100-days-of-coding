@@ -7,6 +7,8 @@ name = "pypi"
 nbformat = "*"
 scikit-learn = "*"
 xgboost = "*"
+matplotlib = "*"
+seaborn = "*"
 
 [dev-packages]
 
