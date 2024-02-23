@@ -25,8 +25,8 @@ df_drop = df.drop(columns = ["Alley", "FireplaceQu", "PoolQC", "Fence", "MiscFea
 # As there are some columns with a lot of missing values, I will try 2 approaches, 1 dropping the columns and 2 filling the missing values and see which
 # model works better
 
-numerical_columns = df.select_dtypes(include = np.number).columns
-categorical_columns = df.select_dtypes(include = ["object", "category"]).columns
+numerical_columns = df_drop.select_dtypes(include = np.number).columns
+categorical_columns = df_drop.select_dtypes(include = ["object", "category"]).columns
 
 # First step is to analyze the dependent variable
 df_drop["SalePrice"].describe()
@@ -96,13 +96,14 @@ categorical_transformer = Pipeline(steps = [
     ("imputer", SimpleImputer(strategy = "constant", fill_value = "missing"))
 ])
 
-numerical_columns = numerical_columns.drop("SalePrice")
+# numerical_columns = numerical_columns.drop("SalePrice")
 
 preprocessor = ColumnTransformer(
     transformers = [
         ("num", numerical_transformer, numerical_columns),
         ("cat", categorical_transformer, categorical_columns)
-    ]
+    ],
+    remainder = "passthrough"
 )
 
 # Apply preprocessor to dataframe
@@ -112,5 +113,7 @@ pipeline = Pipeline(steps = [
 ])
 
 X = df_drop.drop(columns = "SalePrice")
-y = np.log(df_drop.SalePrice)
+# y = np.log(df_drop.SalePrice)
 X_preprocessed = pipeline.fit_transform(X)
+
+df_drop[categorical_columns].info()
